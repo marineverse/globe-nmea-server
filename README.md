@@ -2,6 +2,8 @@
 
 ## How to configure OpenCPN
 
+![OpenCPN](docs/nema_server.jpg)
+
 Open Options, select Connections, Add Connection:
 
 Network Connection
