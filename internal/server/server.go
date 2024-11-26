@@ -1,9 +1,9 @@
-// internal/server/server.go
 package server
 
 import (
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/marineverse/globe-nmea-server/internal/config"
@@ -15,14 +15,54 @@ type Server struct {
 	config *config.Config
 	logger *logger.Logger
 	client *nmea.Client
+	
+	cachedMessage string
+	cacheMutex    sync.RWMutex
+	lastUpdate    time.Time
 }
 
 func New(cfg *config.Config, log *logger.Logger) *Server {
-	return &Server{
+	s := &Server{
 		config: cfg,
 		logger: log,
 		client: nmea.NewClient(cfg.Host),
 	}
+	
+	// Start the background fetcher
+	go s.backgroundFetch()
+	
+	return s
+}
+
+func (s *Server) backgroundFetch() {
+	// Fetch initial message
+	if err := s.updateCache(); err != nil {
+		s.logger.Printf("Initial cache update failed: %v", err)
+	}
+
+	ticker := time.NewTicker(600 * time.Second) // 10 minutes
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if err := s.updateCache(); err != nil {
+			s.logger.Printf("Cache update failed: %v", err)
+		}
+	}
+}
+
+func (s *Server) updateCache() error {
+	nmea, err := s.client.FetchNMEASentence(s.config.BoatUUID)
+	if err != nil {
+		return fmt.Errorf("error fetching NMEA sentence: %v", err)
+	}
+
+	s.cacheMutex.Lock()
+	s.cachedMessage = nmea
+	s.lastUpdate = time.Now()
+	s.cacheMutex.Unlock()
+
+	s.logger.Printf("Cache updated with new NMEA data at %v", s.lastUpdate.Format(time.RFC3339))
+	return nil
 }
 
 func (s *Server) Start() error {
@@ -42,6 +82,13 @@ func (s *Server) Start() error {
 		}
 
 		s.logger.Printf("Connected to %s", conn.RemoteAddr())
+		
+		// Refresh cache on new connection
+		if err := s.updateCache(); err != nil {
+			s.logger.Printf("Failed to refresh cache for new connection: %v", err)
+			// Continue anyway with existing cache data
+		}
+		
 		go s.handleConnection(conn)
 	}
 }
@@ -58,19 +105,17 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 
 	// Send initial message immediately
-	if err := s.sendNMEAMessage(conn); err != nil {
+	if err := s.sendCachedMessage(conn); err != nil {
 		s.logger.Printf("Error sending initial message: %v", err)
 		return
 	}
 
-	ticker := time.NewTicker(600 * time.Second) // don't call more often then every 10min
-	defer ticker.Stop()
+	publishTicker := time.NewTicker(5 * time.Second) // Publish every 5 seconds
+	defer publishTicker.Stop()
 
-	// Channel to handle connection termination
 	done := make(chan struct{})
 	defer close(done)
 
-	// Start a goroutine to check for connection errors
 	go func() {
 		buffer := make([]byte, 1)
 		for {
@@ -87,41 +132,44 @@ func (s *Server) handleConnection(conn net.Conn) {
 		}
 	}()
 
-	// Main loop for sending NMEA sentences
 	for {
 		select {
 		case <-done:
 			return
-		case <-ticker.C:
-			if err := s.sendNMEAMessage(conn); err != nil {
-				s.logger.Printf("Error in ticker loop: %v", err)
+		case <-publishTicker.C:
+			if err := s.sendCachedMessage(conn); err != nil {
+				s.logger.Printf("Error in publish loop: %v", err)
 				return
 			}
 		}
 	}
 }
 
-// Extract message sending logic into its own method to avoid code duplication
-func (s *Server) sendNMEAMessage(conn net.Conn) error {
-	nmea, err := s.client.FetchNMEASentence(s.config.BoatUUID)
-	if err != nil {
-		return fmt.Errorf("error fetching NMEA sentence: %v", err)
+func (s *Server) sendCachedMessage(conn net.Conn) error {
+	s.cacheMutex.RLock()
+	nmea := s.cachedMessage
+	lastUpdate := s.lastUpdate
+	s.cacheMutex.RUnlock()
+
+	if nmea == "" {
+		return fmt.Errorf("no cached NMEA data available")
 	}
 
-	s.logger.Printf("Sending to %s: %s", conn.RemoteAddr(), nmea)
+	s.logger.Printf("Sending to %s: %s (cached %s ago)", 
+		conn.RemoteAddr(), 
+		nmea,
+		time.Since(lastUpdate).Round(time.Second),
+	)
 	
-	// Set write deadline to prevent blocking forever
 	if err := conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		return fmt.Errorf("error setting write deadline: %v", err)
 	}
 
-	// Send the NMEA sentence with CRLF line ending
-	_, err = conn.Write([]byte(nmea + "\r\n"))
+	_, err := conn.Write([]byte(nmea + "\r\n"))
 	if err != nil {
 		return fmt.Errorf("error sending data: %v", err)
 	}
 
-	// Reset write deadline
 	if err := conn.SetWriteDeadline(time.Time{}); err != nil {
 		return fmt.Errorf("error resetting write deadline: %v", err)
 	}
