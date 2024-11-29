@@ -21,6 +21,27 @@ Download latest release for your system:
 
 https://github.com/marineverse/globe-nmea-server/releases 
 
+### On Mac
+
+#### Temporarily Bypass Gatekeeper
+
+Locate the App:
+
+Open Finder and navigate to the location of globe-nmea-server-mac.
+
+Right-Click and Open
+
+  - Right-click (or Control + click) on the app.
+
+
+Select Open from the context menu.
+
+Confirm:
+
+  - A warning dialog will appear. Click Open to run the app.
+
+This action will whitelist the app, and you won't see the warning again.
+
 ## Usage Windows:
 
 Get your [BOAT_UUID] from https://www.marineverse.com/globe
@@ -34,8 +55,10 @@ Get your [BOAT_UUID] from https://www.marineverse.com/globe
 
 ## Usage Mac:
 
+Open TERMINAL app to get acccess to command line. 
+
 Get your [BOAT_UUID] from https://www.marineverse.com/globe
 
 ```
-./globe-nmea-server-mac [BOAT_UUID]
+~/Downloads/globe-nmea-server-mac [BOAT_UUID]
 ```
