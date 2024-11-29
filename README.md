@@ -23,9 +23,14 @@ https://github.com/marineverse/globe-nmea-server/releases
 
 ### On Mac
 
+Make the file executable:
+```
+chmod +x ~/Downloads/globe-nmea-server-mac
+```
+
 #### Temporarily Bypass Gatekeeper
 
-Locate the App:
+Locate the App in Finder:
 
 Open Finder and navigate to the location of globe-nmea-server-mac.
 
@@ -41,6 +46,18 @@ Confirm:
   - A warning dialog will appear. Click Open to run the app.
 
 This action will whitelist the app, and you won't see the warning again.
+
+### Compile from Source
+
+Altenatively to installation, you can compile from source. 
+
+For example, on Mac
+
+```
+brew intall go
+make build
+```
+
 
 ## Usage Windows:
 
