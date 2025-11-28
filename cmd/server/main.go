@@ -18,6 +18,16 @@ func main() {
 	}
 
 	srv := server.New(cfg, log)
+
+	// Start UDP broadcast in background if enabled
+	if cfg.UDP {
+		go func() {
+			if err := srv.StartUDP(); err != nil {
+				log.Printf("UDP error: %v", err)
+			}
+		}()
+	}
+
 	if err := srv.Start(); err != nil {
 		log.Printf("Server error: %v", err)
 		os.Exit(1)

@@ -114,7 +114,11 @@ func (s *Server) handleConnection(conn net.Conn) {
 	defer publishTicker.Stop()
 
 	done := make(chan struct{})
-	defer close(done)
+	var closeOnce sync.Once
+	closeDone := func() {
+		closeOnce.Do(func() { close(done) })
+	}
+	defer closeDone()
 
 	go func() {
 		buffer := make([]byte, 1)
@@ -125,7 +129,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 			default:
 				if _, err := conn.Read(buffer); err != nil {
 					s.logger.Printf("Connection monitor detected error for %s: %v", conn.RemoteAddr(), err)
-					close(done)
+					closeDone()
 					return
 				}
 			}
@@ -143,6 +147,35 @@ func (s *Server) handleConnection(conn net.Conn) {
 			}
 		}
 	}
+}
+
+func (s *Server) StartUDP() error {
+	addr := &net.UDPAddr{
+		IP:   net.IPv4(255, 255, 255, 255),
+		Port: s.config.UDPPort,
+	}
+	conn, err := net.DialUDP("udp4", nil, addr)
+	if err != nil {
+		return fmt.Errorf("failed to start UDP broadcast: %v", err)
+	}
+	defer conn.Close()
+
+	s.logger.Printf("UDP broadcasting on port %d...", s.config.UDPPort)
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		s.cacheMutex.RLock()
+		nmea := s.cachedMessage
+		s.cacheMutex.RUnlock()
+
+		if nmea != "" {
+			conn.Write([]byte(nmea + "\r\n"))
+			s.logger.Printf("UDP broadcast: %s", nmea)
+		}
+	}
+	return nil
 }
 
 func (s *Server) sendCachedMessage(conn net.Conn) error {

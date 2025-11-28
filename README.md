@@ -59,9 +59,16 @@ make build
 ```
 
 
-## Usage Windows:
+## Finding Your Boat UUID
 
-Get your [BOAT_UUID] from https://www.marineverse.com/globe
+1. Go to https://www.marineverse.com/globe/boats
+2. Select your boat to open its profile
+3. Select the **API** tab
+4. Copy the Universally Unique Identifier (UUID) - it looks like: `43463b9c-da55-4eb8-9bc4-2005a0a135ff`
+
+This UUID is required as a command-line argument when starting the server.
+
+## Usage Windows:
 
 1. Download globe-nmea-server.exe.
 2. Right click on the file, ( Show More Options ) and create shortcut. 
@@ -72,9 +79,9 @@ Get your [BOAT_UUID] from https://www.marineverse.com/globe
 
 ## Usage Mac:
 
-Open TERMINAL app to get acccess to command line. 
+Open TERMINAL app to get access to command line.
 
-Get your [BOAT_UUID] from https://www.marineverse.com/globe
+Get your [BOAT_UUID](#finding-your-boat-uuid) first.
 
 ```
 ~/Downloads/globe-nmea-server-mac [BOAT_UUID]
